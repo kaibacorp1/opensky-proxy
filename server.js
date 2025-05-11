@@ -1,11 +1,18 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const nodemailer = require('nodemailer');
+require('dotenv').config();
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
 app.use(express.json());
 
+// OpenSky proxy endpoint
 app.post('/api/flights', async (req, res) => {
   const { username, password, lamin, lomin, lamax, lomax } = req.body;
 
@@ -23,6 +30,39 @@ app.post('/api/flights', async (req, res) => {
     res.json(response.data);
   } catch (err) {
     res.status(err.response?.status || 500).json({ error: err.message });
+  }
+});
+
+// Email alert endpoint using Brevo (Sendinblue)
+const transporter = nodemailer.createTransport({
+  host: 'smtp-relay.brevo.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.BREVO_USER,
+    pass: process.env.BREVO_PASS
+  }
+});
+
+app.post('/api/send-alert', async (req, res) => {
+  const { email, subject, message } = req.body;
+
+  if (!email || !message) {
+    return res.status(400).json({ error: 'Missing email or message' });
+  }
+
+  try {
+    await transporter.sendMail({
+      from: '"Transit Tracker" <sandu.godakumbura@gmail.com>',
+      to: email,
+      subject: subject || 'Transit Detected!',
+      text: message
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to send email' });
   }
 });
 
